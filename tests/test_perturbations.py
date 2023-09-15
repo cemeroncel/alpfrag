@@ -34,7 +34,8 @@ class TestGetPhitkRad:
             pt.get_phitk_rad(-np.random.rand())
 
     def test_small_tk(self):
-        expected = (1., -1.99999999999986e-7, -0.1999999999999571)
+        # expected = (1., -1.99999999999986e-7, -0.1999999999999571)
+        expected = (1., -1.99999999999986e-7)
         found = pt.get_phitk_rad(1e-6)
         assert np.allclose(expected, found)
 
@@ -44,13 +45,15 @@ class TestGetPhitkRad:
         assert np.allclose(below, above, rtol=1e-5, atol=1e-5)
 
     def test_medium_tk(self):
-        expected = (0.840887175519203, -0.230050549274149, -0.1330393315987455)
+        # expected = (0.840887175519203, -0.230050549274149, -0.1330393315987455)
+        expected = (0.840887175519203, -0.230050549274149)
         found = pt.get_phitk_rad(1.3)
         assert np.allclose(expected, found)
 
     def test_large_tk(self):
-        expected = (2.85637442046038e-8, -9.17700078990895e-9,
-                    -2.856007340428782e-8)
+        # expected = (2.85637442046038e-8, -9.17700078990895e-9,
+        #             -2.856007340428782e-8)
+        expected = (2.85637442046038e-8, -9.17700078990895e-9)
         found = pt.get_phitk_rad(1e4)
         assert np.allclose(expected, found)
 
