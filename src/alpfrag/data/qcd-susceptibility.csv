@@ -1,0 +1,31 @@
+# Topological susceptibility of QCD taking into account 
+# the effect of the up, down, stange, charm and bottom
+# quarks. 
+#
+
+# Data is taken from Table S7 of 1606.07494
+# Column 1 : Temperature in MeV
+# Column 2 : -log10 of susceptibility in fm^-4
+# Column 3 : Uncertainty in susceptibility
+
+Temperature,Susceptibility,Uncertainty
+100,-1.66,0.05
+120,-1.65,0.07
+140,-1.75,0.09
+170,-2.18,0.05
+200,-2.72,0.06
+240,-3.39,0.06
+290,-4.11,0.06
+350,-4.74,0.06
+420,-5.34,0.07
+500,-5.90,0.08
+600,-6.49,0.09
+720,-7.08,0.11
+860,-7.67,0.13
+1000,-8.17,0.15
+1200,-8.79,0.17
+1500,-9.56,0.20
+1800,-10.20,0.23
+2100,-10.75,0.26
+2500,-11.38,0.28
+3000,-12.05,0.33

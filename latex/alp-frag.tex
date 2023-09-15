@@ -1,0 +1,449 @@
+\documentclass[a4paper,11pt]{article}
+\pdfoutput=1 % if your are submitting a pdflatex (i.e. if you have
+             % images in pdf, png or jpg format)
+
+\usepackage{ce-jheppub} % for details on the use of the package, please
+% see the JHEP-author-manual
+
+\usepackage{lmodern}
+
+% \usepackage[T1]{fontenc} % if needed
+\usepackage{physics}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsthm}
+% \usepackage{mathpazo}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{cancel}
+\usepackage{tikz}
+\usepackage{numprint}
+%\usepackage{showlabels}
+
+\newcommand{\ini}{i} % quantities evaluated at the beginning of fragmentation
+\newcommand{\dimps}{P} % dimensionful power spectrum
+\newcommand{\dimlessps}{\mathcal{P}}
+\newcommand{\variance}{\operatorname{var}}
+
+\renewcommand{\tilde}{\widetilde}
+\newcommand{\mpl}{M_{\rm pl}}
+\newcommand{\cint}{\operatorname{Ci}}
+\newcommand{\sint}{\operatorname{Si}}
+\newcommand{\sinc}{\operatorname{sinc}}
+\newcommand{\ndw}{N_{\rm DW}}
+\newcommand{\vpq}{V_{\rm PQ}}
+\newcommand{\vpqb}{V_{\cancel{\rm PQ}}}
+\newcommand{\simtime}{\textcolor{modus-blue}{\texttt{t}}}
+\newcommand{\defun}[1]{\textcolor{modus-blue}{\texttt{#1}}}
+\newcommand{\kummer}{\mathsf{M}}
+
+
+\title{\texttt{alpfrag} Notes}
+\author{Cem Eröncel}
+\affiliation{Istanbul Technical University,\\
+  Department of Physics, 34469 Maslak, Istanbul, Turkey}
+
+\emailAdd{cem.eroncel@itu.edu.tr}
+
+\abstract{This note contains derivations of the functions used in the \texttt{alpfrag} Python package. }
+
+\begin{document}
+\maketitle
+
+\flushbottom
+
+\section{Introduction}
+\label{sec:introduction}
+
+In this package we consider a generic ALP field $\phi=\theta f$ under a potential which can in general depend on temperature $T$. We consider potentials of the form
+\begin{equation}
+  \label{eq:1}
+  V(\phi,T)=\chi(T)U(\theta).
+\end{equation}
+We only demand that the \emph{susceptibility} function $\chi(T)$ is defined such that $\chi(T)\rightarrow m_{0}^{2}f^{2}$ as $T\rightarrow0$. The $U$-part will be specified accordingly.
+
+\section{Background evolution \hfill\defun{alpfrag.bg}}
+\label{sec:background-evol}
+
+This module deals with the evolution of the homogeneous part of the ALP field. The equation of motion for the homogeneous part is
+\begin{equation}
+  \label{eq:2}
+  \ddot{\phi}+3H(T)\dot{\phi}+\pdv{V}{\phi}=\ddot{\phi}+3H(T)\dot{\phi}+\chi(T)\pdv{U}{\phi}=0.
+\end{equation}
+Let $\Theta$ denotes the homogeneous component of the angle $\theta$. Then, we can express the derivative of $U$ as
+\begin{equation}
+  \label{eq:3}
+  \pdv{U}{\phi}=\pdv{\Theta}{\phi}\pdv{U}{\Theta}=\frac{1}{f}\pdv{U}{\Theta}.
+\end{equation}
+Then, \eqref{eq:2} can be written as
+\begin{equation}
+  \label{eq:4}
+  \ddot{\Theta}+3H(T)\dot{\Theta}+\frac{\chi(T)}{f^{2}}\pdv{U}{\Theta}=0.
+\end{equation}
+We define a dimensionless time variable called the \emph{simulation time} by $\simtime\equiv m_{0}t/c$ where $m_{0}$ is the ALP mass today, and $c$ is a dimensionless constant which is used to scale the simulation time if necessary. In terms of $\simtime$, \eqref{eq:4} becomes
+\begin{equation}
+  \label{eq:34}
+  \Theta''(\simtime) + \frac{3c H(T)}{m_0} \Theta'(\simtime)+c^2\frac{\chi(T)}{m_0^2f^2}\pdv{U}{\Theta}=0.
+\end{equation}
+We now define \emph{normalized susceptibility} as
+\begin{equation}
+  \label{eq:6}
+  \tilde{\chi}(T)\equiv \frac{\chi(T)}{m_{0}^{2}f^{2}}.
+\end{equation}
+In all cases we consider we have $\chi(T)\rightarrow m_{0}^{2}f^{2}$ as $T\rightarrow 0$, so $\tilde{\chi}(T)\rightarrow 1$ as $T\rightarrow 0$. So the final result for the generalized homogeneous mode equation of motion is
+\begin{equation}
+  \label{eq:40}
+  \boxed{
+  \Theta''(\simtime)+\frac{3 c H(T(\simtime))}{m_0}\Theta'(\simtime)+c^2\tilde{\chi}(T(\simtime))\pdv{U}{\Theta}=0.}
+\end{equation}
+Assuming radiation domination, the temperature dependence of the Hubble is given by
+\begin{equation}
+  \label{eq:33}
+  H^2(T)=\frac{\rho(T)}{3 \mpl^2}\approx\frac{\rho_{\rm rad}(T)}{3 \mpl^2}= \frac{\pi^2}{90}g_{\rho}(T)\frac{T^4}{\mpl^2},
+\end{equation}
+where we have neglected the ALP contribution to the energy density of the universe. The last thing we need is the relation between the simulation time and the temperature, $T(\simtime)$. By using the entropy conservation, one finds \cite{Borsanyi:2016ksw}\,\footnote{Ref. \cite{Borsanyi:2016ksw} uses $\mpl=\sqrt{1/G}$ whereas we use $\mpl=\sqrt{1/(8\pi G)}$.}
+\begin{equation}
+  \label{eq:41}
+  \dv{t}{T}=-\frac{3\sqrt{10}}{4\pi} \frac{1}{\sqrt{g_{\rho}(T)}g_s(T)} \qty(\dv{g_{\rho}(T)}{\ln T} + 4 g_{\rho}(T))\frac{\mpl}{T^3},
+\end{equation}
+or
+\begin{equation}
+  \label{eq:42}
+  \dv{\simtime }{(T/T_{\star})}=-\frac{3\sqrt{10}}{4\pi} \frac{1}{\sqrt{g_{\rho}(T)}g_s(T)} \qty(\dv{g_{\rho}(T)}{\ln T} + 4 g_{\rho}(T))\frac{\mpl\, m_0}{c T_{\star}^2} \qty(\frac{T_{\star}}{T})^3.
+\end{equation}
+Here $T_{\star}$ is an arbitrary temperature in the radiation era chosen conveniently for the problem at hand. For example, for an ALP produced via the misalignment mechanism, it is convenient to define $T_{\star}=T_{1}$ where \cite{Vaquero:2018tib}
+\begin{equation}
+  \label{eq:43}
+  m_1\equiv m(T_1)=H(T_1)\equiv H_1.
+\end{equation}
+If we also choose $c=m_0/m_1$, then
+\begin{equation}
+  \label{eq:44}
+  \frac{\mpl\, m_0}{c T_{\star}^2}\sim \mathcal{O}(1).
+\end{equation}
+Regardless of the choices for $T_{\star}$ and $c$, we can integrate \eqref{eq:42} numerically to get $\simtime (T/T_{\star})$ which can be inverted to get $T(\simtime)$. This way one can perform the integration of \eqref{eq:34}.
+
+For numerical evolution, it is more convenient to factor out the redshift factor from the zero mode $\Theta$, such that the function that we are numerically solving asympototes to a constant at late times. We know that the ALP field should redshift as matter at late times regardless of the potential. This implies
+\begin{equation}
+  \label{eq:8}
+\Theta\propto a^{-3/2},\qas t \rightarrow \infty.
+\end{equation}
+This motivates the definition of a new field $x$ via
+\begin{equation}
+  \label{eq:9}
+  \Theta\equiv x a^{-3/2}.
+\end{equation}
+Also, all the potentials we will consider can be approximated by a quadratic potential at late times when $\Theta \rightarrow 0$. This means at late times they obey $U\propto \Theta^{2}\propto a^{-3}$. So we can also define
+\begin{equation}
+  \label{eq:10}
+  U\equiv \tilde{U}a^{-3}.
+\end{equation}
+In terms of these new variables, the equation of motion \eqref{eq:40} takes the form
+\begin{equation}
+  \label{eq:45}
+  \boxed{x''(\simtime)-\qty[4 g_s(T(\simtime)) - 3 g_{\rho}(T(\simtime))] \frac{\pi^2 c^2 T(\simtime)^4}{120 \mpl^2 m_0^2}x(\simtime)+c^2\tilde{\chi}(T(\simtime)) \pdv{\tilde{U}}{x}=0}.
+\end{equation}
+These equations are exact if we neglect the contribution of the ALPs to the expansion of the universe. Now we consider a simplified scenario.
+
+\subsection{Simplified case}
+\label{sec:simplified-case}
+
+Now consider the simpler case where the effective degrees of freedom can approximated to be constant during the evolution. In this case the equations simplify a lot. First of all, we can analytically integrate \eqref{eq:41} to get
+\begin{equation}
+  \label{eq:46}
+  t(T)=\frac{1}{2}\qty(\frac{\pi}{3} \sqrt{\frac{g_{\rho}}{10}}\frac{T^2}{\mpl})\frac{g_{\rho}}{g_s}=\frac{1}{2}H(T) \frac{g_{\rho}}{g_s}.
+\end{equation}
+If we further assume that $g_{\rho}=g_s$, then we simply get $t=(2H)^{-1}$. In this case, the equations \eqref{eq:40} and \eqref{eq:45} respectively reduce to
+\begin{equation}
+  \label{eq:7}
+\boxed{\Theta''(\simtime)+\frac{3}{2\simtime}\Theta'(\simtime)+c^{2}\tilde{\chi}(T(\simtime))\pdv{U}{\Theta}=0}
+\end{equation}
+and
+\begin{equation}
+  \label{eq:11}
+  \boxed{x''(\simtime)+c^{2}\tilde{\chi}(\simtime)\pdv{\tilde{U}}{x}+\frac{3}{16 \simtime^{2}}x(\simtime)=0}
+\end{equation}
+For a given model, the normalized susceptibility $\chi(\simtime)$ and the potential derivative $\tilde{U}_{x}$ is known. Once the constant $c$ is fixed, all we need to have are the initial conditions $x_{0}\equiv x(\simtime_{i})$ and $v_{0}\equiv v(\simtime_{i})$, where $\simtime_{i}$ is some initial time, and $v(\simtime)\equiv x'(\simtime)$. Usually, the initial conditions are specified in terms of $\Theta$ and $\Theta'$. They are related to $x_{0}$ and $v_{0}$ via
+\begin{equation}
+  \label{eq:12}\defun{bg.scaled\_initial\_conditions}:=
+  \begin{cases}
+  x_{0}&=\simtime_{i}^{3/4}\Theta(\simtime_{i}),\\
+  v_{0}&=\dfrac{3 x_{0}}{4 \simtime_{i}}+\simtime_{i}^{3/4}\Theta'(\simtime_{i})
+  \end{cases}
+\end{equation}
+For numerical evolution it will be convenient to write \eqref{eq:11} in the form
+\begin{equation}
+  \label{eq:13}
+  x'(\simtime)=v(\simtime),\quad v'(\simtime)=\defun{F}_{\rm zm}(x;\simtime,\mathtt{\ast args})=0,
+\end{equation}
+where
+\begin{equation}
+  \label{eq:15}
+  \defun{F}_{\rm zm}=-\qty[c^{2}\tilde{\chi}(\simtime)\pdv{\tilde{U}}{x}+\frac{3}{16 \simtime^{2}}x(\simtime)].
+\end{equation}
+Here \texttt{$\ast$args} denote the additional arguments that the function gets. In the code, \defun{F} will be denoted as \defun{force\_fun}.
+
+\subsection{Energy density of the homogeneous mode}
+\label{sec:energy-dens-homog}
+
+The energy density in the homogeneous mode is given by
+\begin{equation}
+  \label{eq:21}
+  \rho_{\Theta}=\frac{1}{2}\dot{\phi}^{2}+V(\phi)=\frac{1}{2}f^{2}\dot{\Theta}^{2}+\chi(T)U(\Theta).
+\end{equation}
+In terms of the simulation time $\simtime$, this is
+\begin{equation}
+  \label{eq:47}
+ \rho_{\Theta}=\frac{1}{2}f^2m_0^2\qty[\frac{1}{2c^2}\Theta'(\simtime)^2+\tilde{\chi}(T(\simtime))U(\Theta)]
+\end{equation}
+A more useful variable is the number density:
+\begin{equation}
+  \label{eq:48}
+  n_{\Theta}(T)=\frac{\rho_{\Theta}}{m(T)},
+\end{equation}
+where the mass is defined via the second derivative of the potential at the minimum, i.e.
+\begin{equation}
+  \label{eq:49}
+  m^2(T)\equiv \eval{\pdv[2]{V}{\phi}}_{\min V}=\frac{\chi(T)}{f^2}\eval{\pdv[2]{U}{\Theta}}_{\min V}=m_0^2\tilde{\chi}(T)\eval{\pdv[2]{U}{\Theta}}_{\min V}
+\end{equation}
+The convenience of the number density comes from the fact after the onset of oscillations it is comovingly conserved. This is true even if the ALP mass is still changing. So the ratio of this to an another comovingly conserved quantity, such as the entropy, approaches to a constant, and will remain so for the rest of the evolution. This is quite useful to determine the relic density today. 
+
+When working in the simplified scenario of Section \ref{sec:simplified-case}, the comoving energy density $\simtime^{3/2}\rho_{\Theta}$ should approach to a constant once the potential becomes temperature-independent.
+
+\section{Perturbations}
+\label{sec:perturbations}
+
+We start with the FRLW metric including the curvature perturbations in the Newtonian gauge:
+\begin{equation}
+  \label{eq:22}
+  \dd{s}^2=-(1+2\Psi)\dd{t}^2+a^2(t)(1+2\Phi)\delta_{ij}\dd{x}^i\dd{x}^j.
+\end{equation}
+Here, $\Psi$ and $\Phi$ are gauge-invariant potentials of Kodama \& Sasaki. The former plays the role of the gravitational potential in the Newtonian limit. Since the anisotropic stress vanishes for scalar fields at linear order in perturbation theory, we have $\Psi=-\Phi$. The mode functions corresponding to $\Theta$ have the following equation of motion:
+\begin{equation}
+  \label{eq:50}
+  \ddot{\theta}_k+3 H \dot{\theta}_k+\qty(\frac{k^2}{a^2}+\frac{1}{f^2}\eval{\pdv[2]{V}{\theta}}_{\Theta})\theta_k=2\Phi_k \frac{1}{f^2}\eval{\pdv{V}{\theta}}_{\Theta}-4\dot{\Phi}_k\dot{\Theta}-\frac{1}{f^2}\eval{\pdv[2]{V}{\theta}{T}}_{\Theta,\bar{T}}.
+\end{equation}
+In terms of simulation variables this reads
+\begin{equation}
+  \label{eq:51}
+  \theta_k''(\simtime)+\frac{3}{2\simtime}\theta_k'(\simtime)+\qty(\frac{c^2k^2}{a^2m_0^2}+c^2\tilde{\chi}(\simtime)\eval{\pdv{U}{\theta}}_{\theta})\theta_k=2\Phi_kc^2\tilde{\chi}(\simtime)\eval{\pdv{U}{\theta}}_{\Theta}-2 \frac{t_k}{\simtime}\Phi_k'(t_k)\Theta'(\simtime)-c^2\pdv{\tilde{\chi}(T)}{T}\pdv{U}{\Theta}.
+\end{equation}
+Here, $\Phi_k$ are the Fourier modes of the curvature perturbations in the radiation era:
+\begin{equation}
+  \label{eq:52}
+  \Phi_k(t_k)=3\Phi_k(0)\qty(\frac{\sin t_k - t_k\cos t_k}{t_k^3}),\quad t_k=\frac{k/a}{\sqrt{3}H}.
+\end{equation}
+In the following, we absorb the initial conditions $\Phi_k(0)$ which are imprinted by the inflation into the normalization of the mode functions. We will restore it later. We also define a dimensionless momentum variable
+\begin{equation}
+  \label{eq:53}
+  \tilde{k}^2\equiv c\, \frac{k^2/a^2}{2 m_0 H},
+\end{equation}
+which is constant during radiation domination. In the end, we obtain the following differential equation:
+\begin{equation}
+  \label{eq:54}
+  \theta_k''(\simtime)+\frac{3}{2\simtime}\theta_k'(\simtime)+\qty(\frac{\tilde{k}^2}{\simtime}+c^2\tilde{\chi}(\simtime) \eval{\pdv[2]{U}{\theta}}_{\Theta})\theta_k=\mathcal{S}(\tilde{k},\simtime),
+\end{equation}
+where the source term is
+\begin{equation}
+  \label{eq:55}
+  \mathcal{S}(\tilde{k},\simtime)=2 \left[ \Phi_k c^2\tilde{\chi}(\simtime)\eval{\pdv{U}{\theta}}_{\Theta}-\frac{t_k}{t_m}\Phi_k'(t_k)\Theta'(\simtime) \right]-c^2\pdv{\tilde{\chi}}{T}\pdv{U}{\theta}.
+\end{equation}
+The time variables $t_k$ and $\simtime$ are related to each other via
+\begin{equation}
+  \label{eq:56}
+  t_k=\sqrt{\frac{4 t_m}{3}}\tilde{k}\quad\Rightarrow\quad t_k^2=\frac{4}{3}t_m\tilde{k}^2\quad\Rightarrow\quad t_m=\frac{3}{4}\frac{t_k^2}{\tilde{k}^2}.
+\end{equation}
+The density and pressure perturbations are given respectively by
+\begin{align}
+  \label{eq:58}
+  \delta\rho_{\theta}&=f^2m_0^2 \left[ \frac{\Theta'(\simtime)\theta_k'(\simtime)}{c^2}+\Phi_k\qty(\frac{\Theta'(\simtime)}{c})^2+\tilde{\chi}(\simtime)\eval{\pdv{U}{\theta}}_{\Theta}\theta_k+\pdv{\tilde{\chi}}{T}U(\Theta)\delta T \right].\\
+  \label{eq:59}
+   \delta p_{\theta}&=f^2m_0^2 \left[ \frac{\Theta'(\simtime)\theta_k'(\simtime)}{c^2}+\Phi_k\qty(\frac{\Theta'(\simtime)}{c})^2-\tilde{\chi}(\simtime)\eval{\pdv{U}{\theta}}_{\Theta}\theta_k+\pdv{\tilde{\chi}}{T}U(\Theta)\delta T \right].
+\end{align}
+
+
+\section{Analytical initial conditions}
+\subsection{Series solution at early times in Standard Misalignment}
+\label{sec:series-solution-at}
+
+In the Standard Misalignment Mechanism (SMM), the ALP field is initially frozen at early times when $m(T)\ll H(T)$ or $\simtime \ll 1$ regardless of the potential. In this regime, we can write the background solution as
+\begin{equation}
+  \label{eq:29}
+  \Theta(\simtime)\approx \Theta_{i} + \delta\Theta(\simtime) \qq{where} \delta\Theta(\simtime)\ll \Theta_{i}. 
+\end{equation}
+With this, we can expand the potential derivative in \eqref{eq:7} as
+\begin{equation}
+  \label{eq:30}
+  \pdv{U}{\Theta}\approx\eval{\pdv{U}{\Theta}}_{\Theta_{i}}+\eval{\pdv[2]{U}{\Theta}}_{\Theta_{i}}\delta\Theta(\simtime).
+\end{equation}
+By plugging this into \eqref{eq:8}, we get the following equation at leading order in $\delta\Theta$:
+\begin{equation}
+  \label{eq:31}
+  \delta\Theta''(\simtime)+\frac{3}{2\simtime}\delta\Theta'(\simtime)+c^2\tilde{\chi}(\simtime)\eval{\pdv[2]{U}{\Theta}}_{\Theta_{i}}\delta\Theta(\simtime)=-c^2\tilde{\chi}(\simtime)\eval{\pdv{U}{\Theta}}_{\Theta_{i}}\equiv \mathcal{F}(\simtime).
+\end{equation}
+Provided that the homogeneous part can be solved with $u_1(\simtime)$ and $u_2(\simtime)$ being two linearly-independent solutions, the full solution of $\delta\Theta(\simtime)$ obeying the initial condition $\delta(\Theta)\rightarrow 0$ as $\simtime \rightarrow 0$ can be written as
+\begin{equation}
+  \label{eq:32}
+  \delta\Theta(\simtime)=u_2(\simtime)\int_0^{\simtime}\dd{\tau} \frac{u_1(\tau)\mathcal{F}(\tau)}{W[u_1(\tau),u_2(\tau)]}-u_1(\simtime)\int_0^{\simtime}\dd{\tau} \frac{u_2(\tau)\mathcal{F}(\tau)}{W[u_1(\tau),u_2(\tau)]},
+\end{equation}
+where $W$ is the Wronskian. The integrals can be evaluated exactly in some cases. Now, we will study these:
+
+\subsubsection{Temperature-independent potential}
+\label{sec:temp-indep-potent}
+
+\paragraph{Background:}
+
+In this case $\tilde{\chi}=1$ and $U(\Theta)$ is time-independent which implies that $\mathcal{F}$ is also time-independent. Let us define
+\begin{equation}
+  \label{eq:37}
+  \mu^2\equiv c^2 \eval{\pdv[2]{U}{\Theta}}_{\Theta_{i}},
+\end{equation}
+where $\mu$ is allowed to be imaginary. The homogeneous solutions are
+\begin{equation}
+  \label{eq:35}
+  u_1(\simtime)=\frac{J_{1/4}(\mu \simtime)}{\simtime^{1/4}}\qand \frac{Y_{1/4}(\mu \simtime)}{\simtime^{1/4}},
+\end{equation}
+whose Wronskian reads
+\begin{equation}
+  \label{eq:36}
+  W=\frac{2}{\pi \simtime^{3/2}}.
+\end{equation}
+In this case, the integrals can be performed analytically. We obtain the early-time solution as
+\begin{equation}
+  \label{eq:5}
+  \Theta(t)\approx \Theta_i+\frac{\mathcal{F}}{\mu^2}\qty[1-2^{1/4}\Gamma\qty(\frac{5}{4})\frac{J_{1/4}(\mu t)}{(\mu t)^{1/4}}],\quad \mathcal{F}=-c^2U_i'.
+\end{equation}
+where $U_i'\equiv \eval{\pdv{U}{\Theta}}_{\Theta_i}$. Note that for the quadratic potential, $U_i'=\Theta_i$ and $\mu^2=1$, and this early-time solution becomes identical to the full analytic solution. 
+By expanding the result around $\simtime=0$ yields to the following series solution:
+\begin{equation}
+  \label{eq:38}
+  \Theta(\simtime)=\Theta_{i}+\frac{\mathcal{F}}{\mu^2}\qty[\frac{\mu^2\simtime^2}{5}-\frac{\mu^4\simtime^4}{90}+\frac{\mu^6\simtime^6}{3510}-\frac{\mu^8 \simtime^8}{\numprint{238680}}+\frac{\mu^{10} \simtime^{10}}{\numprint{25061400}}+\mathcal{O}((\mu\simtime)^{12})].
+\end{equation}
+So, for the derivative we have
+\begin{equation}
+  \label{eq:39}
+  \delta\Theta'(\simtime)=\frac{\mathcal{F}}{\mu^2}\left[ \frac{2}{5}\mu^2\simtime - \frac{2}{45}\mu^4 \simtime^3 + \frac{1}{585} \mu^6 \simtime^5 - \frac{1}{\numprint{29835}} \mu^8\simtime^7 + \frac{1}{\numprint{2506140}}\mu^{10}\simtime^9+\mathcal{O}(\simtime^{11}) \right].
+\end{equation}
+
+\paragraph{Mode functions:}
+
+We now set $c=1$ which is good choice for the temperature-independent potentials anyway. The mode function equation of motion \eqref{eq:54} takes the form
+\begin{equation}
+  \label{eq:57}
+  \theta_k''(\simtime)+\frac{3}{2\simtime}\theta_k'(\simtime)+ \left( \frac{\tilde{k}^2}{\simtime}+\eval{\pdv[2]{U}{\theta}}_{\Theta} \right)\theta_k=\mathcal{S},
+\end{equation}
+where
+\begin{equation}
+  \label{eq:60}
+  \mathcal{S}=2\qty[\Phi_k \eval{\pdv{U}{\theta}}_{\Theta} - \frac{t_k}{\simtime}\Phi_k'(t_k)\Theta'(\simtime)].
+\end{equation}
+At early times, we can approximate
+\begin{equation}
+  \label{eq:61}
+  \eval{\pdv[2]{U}{\theta}}_{\Theta}\approx \eval{\pdv[2]{U}{\theta}}_{\Theta_i}\equiv \mu^2\qq{,}\Theta'(\simtime)\approx-\frac{2}{5}\eval{\pdv{U}{\theta}}_{\Theta_i}\simtime\equiv -\frac{2}{5}U_i'\simtime.
+\end{equation}
+Then, we get
+\begin{equation}
+  \label{eq:62}
+  \theta_k''(\simtime)+\frac{3}{2\simtime}\theta_k'(\simtime)+ \left( \frac{\tilde{k}^2}{\simtime}+\mu^2\right)\theta_k=\mathcal{S},
+\end{equation}
+with
+\begin{equation}
+  \label{eq:63}
+  \mathcal{S}\approx 2 U_i' \left[ \Phi_k-\frac{2}{5}t_k\Phi_k'(t_k) \right]=U_i'\qty[-\frac{12}{5}\frac{\sin t_k}{t_k}+\frac{66}{5}\qty(\frac{\sin t_k}{t_k^3}-\frac{\cos t_k}{t_k^2})].
+\end{equation}
+% It is more convenient to write the differential equation in terms of the $t_k$ variable, and absorb $U_i'$ into the mode functions via $\theta_k=\tilde{\theta}_k U_i'$. So we get
+% \begin{equation}
+%   \label{eq:64}
+%   \tilde{\theta}_k''(t_k)+2\tilde{\theta}_k'(t_k)+\qty[3 + \frac{9}{4}\frac{t_k^2}{\tilde{k}^4}\mu^2]\tilde{\theta}_k(t_k)=\frac{9}{4}\frac{t_k^2}{\tilde{k}^4}\qty[-\frac{12}{5}\frac{\sin t_k}{t_k}+\frac{66}{5}\qty(\frac{\sin t_k}{t_k^3}-\frac{\cos t_k}{t_k^2})].
+% \end{equation}
+The homogeneous solutions to \eqref{eq:62} are given by the Kummer's functions of the first kind:
+\begin{align}
+  \label{eq:65}
+  \theta_1(t_m)&=e^{-i \mu t_m}\,\kummer \left( \frac{3}{4}+\frac{i \tilde{k}^2}{2\mu},\frac{3}{2},2 i \mu t_m \right),\\
+  \theta_2(t_m)&=\frac{e^{-i \mu t_m}}{\sqrt{t_m}}\,\kummer \left( \frac{1}{4}+\frac{i \tilde{k}^2}{2\mu},\frac{1}{2},2 i \mu t_m \right)
+\end{align}
+Their Wronskian reads
+\begin{equation}
+  \label{eq:66}
+  W[\theta_1,\theta_2]=-\frac{1}{2 t_m^{3/2}}.
+\end{equation}
+The solution that vanish at early times are given by the particular solution:
+\begin{equation}
+  \label{eq:67}
+  \theta_k^{\rm part}=2\theta_1(t_m)\int_0^{t_m}\dd{\tau}\tau^{3/2}\theta_2(\tau)\mathcal{S}(\tau)-2\theta_2(t_m)\int_0^{t_m}\dd{\tau}\tau^{3/2}\theta_1(\tau)\mathcal{S}(\tau)
+\end{equation}
+
+\section{Quadratic potential with constant mass \hfill \defun{alpfrag.quadratic}}
+\label{sec:quadr-potent-with}
+
+This is the simplest model that we can think of which admits an analytic solution. Therefore, it is an excellent test bed to check the numerical mode. The potential is
+\begin{equation}
+  \label{eq:14}
+  V(\Theta)=\underbrace{m_{0}^{2}f^{2}}_{\chi}\underbrace{\frac{\Theta^{2}}{2}}_{U}\quad\Rightarrow\quad\tilde{\chi}=1\qand \tilde{U}(x)=\frac{1}{2}x^{2}.
+\end{equation}
+The potential derivatives simply becomes
+\begin{equation}
+  \label{eq:16}
+  \tilde{U}_{x}=x,\quad \tilde{U}_{xx}=1.
+\end{equation}
+
+By choosing $c=1$, the differential equation for the homogeneous mode before scaling \eqref{eq:7} takes the form
+\begin{equation}
+  \label{eq:17}
+  \Theta''(\simtime)+\frac{3}{2\simtime}\Theta'(\simtime)+\Theta(\simtime)=0.
+\end{equation}
+The solution with the initial conditions $\Theta(\simtime \rightarrow 0)=\Theta_{i}$ and $\Theta'(\simtime \rightarrow 0)=0$ is given by
+\begin{align}
+  \label{eq:18}
+  \Theta(\simtime)&=\Theta_{i}\times \underbrace{2^{1/4}\Gamma(5/4)\frac{J_{1/4}(\simtime)}{\simtime^{1/4}}}_{\defun{normalized\_field\_amplitude}}\\
+  \Theta'(\simtime)&=\Theta_{i}\times \underbrace{\frac{2^{1/4}\Gamma(5/4)}{\simtime^{1/4}}\qty[J_{1/4}'(\simtime)-\frac{1}{4\simtime}J_{1/4}(\simtime)]}_{\defun{normalized\_field\_velocity}}.
+\end{align}
+The energy density is
+\begin{equation}
+  \label{eq:19}
+  \frac{\rho}{m_{0}^{2}f^{2}}=\Theta_{i}^2\times\underbrace{\frac{\qty(\Gamma(5/4))^{2}}{\sqrt{2\simtime}}\qty[J_{1/4}^{2}(\simtime)+J_{5/4}^{2}(\simtime)]}_{\defun{normalized\_energy\_density}}.
+\end{equation}
+At late times this scales as $\propto \simtime^{-3/2}$. Therefore the quantity
+\begin{equation}
+  \label{eq:20}
+  \frac{\rho}{m_{0}^{2}f^{2}}\times \simtime^{3/2}=:\defun{normalized\_comoving\_energy\_density}
+\end{equation}
+approaches to a constant value given by
+\begin{equation}
+  \label{eq:23}
+  \frac{\rho}{m_{0}^{2}f^{2}}\times \simtime^{3/2} \rightarrow \Theta_{i}^{2}\frac{\sqrt{2}}{\pi}\qty(\Gamma(5/4))^{2}.
+\end{equation}
+
+\section{Non-periodic monodromy potential \hfill \defun{mycosmopy.monodromy}}
+\label{sec:non-peri-monodr}
+
+The monodromy potential is given by
+\begin{equation}
+  \label{eq:24}
+  V(\phi)=\frac{m_{0}^{2}f^{2}}{2p}\qty[\qty(1+\frac{\phi^{2}}{f^{2}})^{p} - 1].
+\end{equation}
+The potential does not depend on temperature so $\tilde{\chi}=1$. This implies that $U(\Theta)$ is
+\begin{equation}
+  \label{eq:25}
+  U(\Theta)=\frac{1}{2p}\qty[(1+\Theta^{2})^{p}-1].
+\end{equation}
+In terms of $x$ and $\simtime$, $\tilde{U}$ takes the form
+\begin{equation}
+  \label{eq:26}
+  \tilde{U}(\simtime,x)=\frac{\simtime^{3/2}}{2p}\qty[\qty(1+\frac{x^{2}}{\simtime^{3/2}})^{p}-1].
+\end{equation}
+By taking derivatives, we get
+\begin{align}
+  \label{eq:27}
+  \tilde{U}_{x}&=x\qty(1+\frac{x^{2}}{\simtime^{3/2}})^{p-1},\\
+  \label{eq:28}
+  \tilde{U}_{xx}&=\qty[1+(2p-1)\frac{x^{2}}{\simtime^{3/2}}]\qty(1+\frac{x^{2}}{\simtime^{3/2}})^{p-2}.
+\end{align}
+
+\bibliographystyle{JHEP}
+\bibliography{references}
+\end{document}
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

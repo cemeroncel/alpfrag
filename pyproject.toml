@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alpfrag"
+version = "0.0.1"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+    ]
+markers = [
+        "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+        ]       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
