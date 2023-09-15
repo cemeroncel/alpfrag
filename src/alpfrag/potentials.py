@@ -63,6 +63,9 @@ class Free(Potential):
         super().__init__(_u_of_theta, _u_of_theta_der, _u_of_theta_dder,
                          _ut_of_x, _ut_of_x_der, _ut_of_x_dder)
 
+    def __str__(self):
+        return "free"
+
 
 class Periodic(Potential):
     def __init__(self) -> None:
@@ -86,6 +89,9 @@ class Periodic(Potential):
 
         super().__init__(_u_of_theta, _u_of_theta_der, _u_of_theta_dder,
                          _ut_of_x, _ut_of_x_der, _ut_of_x_dder)
+
+    def __str_(self):
+        return "periodic"
 
 
 class NonPeriodic(Potential):
@@ -114,3 +120,6 @@ class NonPeriodic(Potential):
 
         super().__init__(_u_of_theta, _u_of_theta_der, _u_of_theta_dder,
                          _ut_of_x, _ut_of_x_der, _ut_of_x_dder)
+
+    def __str__(self):
+        return "non-periodic" + "-p" + "{:.2f}".format(self.p)
