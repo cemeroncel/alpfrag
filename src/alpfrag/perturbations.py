@@ -604,8 +604,8 @@ def dc_eval_latetime(kt: float, delta_ini: float, delta_der_ini: float,
                 (-0.5*(np.exp(t)/(1. + np.exp(t)))*y[1]
                  - (kt**4 - 1.5*np.exp(t))*y[0]/(1. + np.exp(t)))]
     y0 = [delta_ini, delta_der_ini]
-    t_span = [np.log(1. + cosmo.zeq)/np.log(1. + z_start),
-              np.log(1. + cosmo.zeq)/np.log(1. + z_end)]
+    t_span = [np.log((1. + cosmo.zeq)/(1. + z_start)),
+              np.log((1. + cosmo.zeq)/(1. + z_end))]
     return solve_ivp(rhs, t_span, y0, rtol=rtol, atol=atol, **solve_ivp_kwargs)
 
 

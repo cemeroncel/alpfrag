@@ -90,7 +90,7 @@ class Periodic(Potential):
         super().__init__(_u_of_theta, _u_of_theta_der, _u_of_theta_dder,
                          _ut_of_x, _ut_of_x_der, _ut_of_x_dder)
 
-    def __str_(self):
+    def __str__(self):
         return "periodic"
 
 

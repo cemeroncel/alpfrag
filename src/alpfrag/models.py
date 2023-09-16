@@ -17,6 +17,10 @@ from scipy.integrate._ivp.ivp import OdeResult
 import alpfrag.analytical as analytical
 import alpfrag.perturbations as pt
 from abc import ABC, abstractmethod
+from alpfrag.paths import RESULTS_PATH
+import h5py
+import alpfrag.saving as save
+from pathlib import Path
 
 
 def _unit_consistent(x: Quantity, u: Unit) -> bool:
@@ -32,7 +36,8 @@ class ALP(ABC):
                  pot: Potential,
                  m0: Quantity | None = None,
                  cosmo: Cosmology = Cosmology(),
-                 c: float = 1.
+                 c: float = 1.,
+                 run_id: int | None = None
                  ) -> None:
         self.pot = pot
         if m0 is not None:
@@ -45,6 +50,11 @@ class ALP(ABC):
             self.m0 = None
         self.cosmo = cosmo
         self.c = c
+        self.run_id = run_id
+
+    @abstractmethod
+    def fname_base(self) -> str:
+        pass
 
     def convert_tm_to_redshift(self, tm):
         # Check whether m0 is defined
@@ -63,6 +73,35 @@ class ALP(ABC):
 
         # Get the redshift
         return self.cosmo.z_at_T(_T)
+
+    def convert_kt_to_kMpc(self, kt: float) -> [float, float]:
+        # Check whether m0 is defined
+        if self.m0 is None:
+            msg = "You need to set the ALP mass to use this method!"
+            raise AttributeError(msg)
+
+        # Convert the ALP mass to Mpc^-1
+        m0_Mpc = nat.convert(self.m0, nat.Mpc**-1).value
+
+        # Calculate k in Mpc^-1
+        k_Mpc = np.sqrt(2./self.c)*kt*m0_Mpc/(1. + self.z1)
+
+        # Return k in Mpc^-1 and h*Mpc^-1
+        return k_Mpc, k_Mpc/self.cosmo.h
+
+    def convert_kMpc_to_kt(self, k: Quantity) -> float:
+        # Check whether m0 is defined
+        if self.m0 is None:
+            msg = "You need to set the ALP mass to use this method!"
+            raise AttributeError(msg)
+
+        # Convert the ALP mass to Mpc^-1
+        m0_Mpc = nat.convert(self.m0, nat.Mpc**-1).value
+
+        # Convert k to Mpc^-1
+        kMpc = nat.convert(k, nat.Mpc**-1).value
+
+        return np.sqrt(self.c*0.5)*(kMpc/m0_Mpc)*(1. + self.z1)
 
     @property
     def H1(self):
@@ -306,7 +345,54 @@ class ALP(ABC):
             dc_der_avg[i] = num/den
         return t_avg, dc_avg, dc_der_avg
 
+    def pt_avg_dc_and_save(self,
+                           tm_start: float | None = None,
+                           step: int = 5,
+                           index: int = -2,
+                           fname: str | None = None,
+                           results_path: Path | None = None):
+        try:
+            tm_match_arr = np.zeros(len(self.kt_list))
+            delta_arr = np.zeros(len(self.kt_list))
+            delta_der_arr = np.zeros(len(self.kt_list))
+
+        except AttributeError:
+            print("You need to run the method `pt_modes_evolve` first.")
+
+        if tm_start is None:
+            tm_start = 0.5*self.pt_modes[0][-1]['sol'].t[-1]
+
+        for i in range(len(self.kt_list)):
+            r = self.get_avg_dc_evolution(tm_start, i, step=step)
+            tm_match_arr[i] = r[0][index]
+            delta_arr[i] = r[1][index]
+            delta_der_arr[i] = r[2][index]
+
+        if fname is None:
+            timestamp = save.get_timestamp()
+            self.run_id = int(timestamp)
+            fname = self.fname_base + "_int_" + timestamp + '.hdf5'
+
+        if results_path is None:
+            results_path = RESULTS_PATH
+
+        with h5py.File(results_path / fname, 'a') as f:
+            f.create_dataset('kt', data=self.kt_list)
+            f.create_dataset('delta', data=delta_arr)
+            f.create_dataset('delta_der_tm', data=delta_der_arr)
+            f.create_dataset('tm_match', data=tm_match_arr)
+            f.attrs['potential'] = str(self.pot)
+            f.attrs['theta_initial'] = self.theta_ini
+            f.attrs['tm_initial'] = self.bg_field[0]['sol'].t[0]
+            f.attrs['tm_final'] = self.bg_field[-1]['sol'].t[-1]
+            f.close
+
+        print(f"Results saved in {results_path / fname}.")
+
+        return self.kt_list, delta_arr, delta_der_arr, tm_match_arr
+
     def _pt_dc_eval_latetime_single(self, mode_index: int,
+                                    z_end: float = 0.,
                                     tm_start: float | None = None,
                                     step: int = 5,
                                     index: int = -2):
@@ -319,16 +405,85 @@ class ALP(ABC):
             print("You need to run the method `pt_modes_evolve` first.")
 
         if tm_start is None:
-            tm_start = 0.5*tm
+            tm_start = 0.5*tm[-1]
 
-        # Get the averaged density constrasty evolution
+        # Get the averaged density contrast evolution
         t_avg, dc_avg, dc_der_avg = self.get_avg_dc_evolution(tm_start,
                                                               mode_index,
                                                               sol_index=-1,
                                                               step=step)
-        
-        sol = pt.dc_eval_latetime(kt, dc_avg[index], dc_der_avg[index],
+
+        # Get the simulation time at matching
+        tm_match = t_avg[index]
+
+        # Convert tm_match to redshift
+        z_start = self.convert_tm_to_redshift(tm_match)
+
+        # dc_der_avg constains derivatives with respect to tm. We need
+        # to convert this to ln(y) derivatives where y = a/aeq
+        dc = dc_avg[index]
+        dc_der = 2*t_avg[index]*dc_der_avg[index]
+
+        sol = pt.dc_eval_latetime(kt, dc, dc_der,
                                   self.cosmo, z_start, z_end)
+
+        kMpc, khMpc = self.convert_kt_to_kMpc(kt)
+
+        return {
+            'kt': kt,
+            'kMpc': kMpc,
+            'khMpc': khMpc,
+            'z_arr': (1. + self.cosmo.zeq)*np.exp(-sol.t) - 1.,
+            'delta': sol.y[0],
+            'sol': sol
+        }
+
+    def pt_dc_eval_latetime_direct(self, z_end: float = 0,
+                                   tm_start: float | None = None,
+                                   step: int = 5,
+                                   index: int = -2):
+        self.pt_dc_latetime = []
+        for i in range(len(self.kt_list)):
+            dc_dict = self._pt_dc_eval_latetime_single(i, z_end, tm_start,
+                                                       step, index)
+            self.pt_dc_latetime.append(dc_dict)
+
+    def pt_dc_eval_latetime_savefile(self, z_end: float = 0.):
+        fname = self.fname_base + "_int_" + str(self.run_id) + '.hdf5'
+        f = h5py.File(RESULTS_PATH / fname, 'r')
+        kt_list = f['kt_list']
+        delta_list = f['delta']
+        tm_match_list = f['tm_match']
+        delta_der_tm_list = f['delta_der_tm']
+        f.close()
+
+        # Convert tm derivatives to convert to ln(y) derivatives where
+        # y = a/aeq
+        delta_der_lny_list = 2*tm_match_list*delta_der_tm_list
+
+        # Creating the list to store the solutions
+        self.pt_dc_latetime = []
+
+        # Loop to compute the solutions
+        for i, kt in kt_list:
+            sol = pt.dc_eval_latetime(kt, delta_list[i], delta_der_lny_list[i],
+                                      self.cosmo,
+                                      self.convert_tm_to_redshift(tm_match_list[i]),
+                                      z_end)
+            if sol.success:
+                kMpc, khMpc = self.convert_kt_to_kMpc(kt)
+                self.pt_dc_latetime.append({
+                    'kt': kt,
+                    'kMpc': kMpc,
+                    'khMpc': khMpc,
+                    'z_arr': (1. + self.cosmo.zeq)*np.exp(-sol.t) - 1.,
+                    'delta': sol.y[0],
+                    'sol': sol
+                })
+            else:
+                msg = "Integration failed for kt={:.2f}".format(kt)
+                raise RuntimeError(msg)
+
 
 
 class StandardALP(ALP):
@@ -344,6 +499,17 @@ class StandardALP(ALP):
         self.bg_field = []
         self.t_zero_cross = None
         self.t_first_min = None
+
+    @property
+    def fname_base(self) -> str:
+        mech = 'smm'
+        pot_str = str(self.pot)
+        if self.m0 is None:
+            m_str = "mNone"
+        else:
+            m_str = "m" + "{:.2e}".format(nat.convert(self.m0, nat.eV).value)
+        i_str = "thi" + "{:.3f}".format(self.theta_ini)
+        return mech + "_" + pot_str + "_" + m_str + "_" + i_str
 
     def bg_get_precise_ics(self, ti: float) -> tuple[float, float]:
         musq = self.pot.u_of_theta_dder(self.theta_ini)

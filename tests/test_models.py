@@ -5,7 +5,9 @@ import alpfrag.models as models
 import alpfrag.quadratic as qdr
 import alpfrag.background as bg
 import alpfrag.potentials as pot
+import alpfrag.cosmology as cosmology
 import numpy as np
+import natpy as nat
 import pytest
 
 
@@ -60,3 +62,26 @@ class TestFreeStandardALP:
         sol_unscl = bg.unscale_solution(t, x, v)
         obtained = sol_unscl['theta_der']
         assert np.allclose(expected, obtained)
+
+
+class TestFnameBase:
+    def test_standard_free_nomass(self):
+        expected = "smm_free_mNone_thi4.20"
+        obtained = models.StandardALP(4.2, pot.Free()).fname_base
+        assert expected == obtained
+
+    def test_startdard_free_mass(self):
+        expected = "smm_free_m1.00e-22_thi4.20"
+        obtained = models.StandardALP(4.2, pot.Free(), 1e-22*nat.eV).fname_base
+        assert expected == obtained
+
+
+class TestMomentumConversion:
+    def test_momentum_conversion(self):
+        k = 100.*nat.Mpc**-1
+        kMpc = nat.convert(k, nat.Mpc**-1).value
+        cosmo = cosmology.Cosmology()
+        bch = models.StandardALP(4.2, pot.Free(), 1e-22*nat.eV, cosmo=cosmo)
+        kt = bch.convert_kMpc_to_kt(k)
+        k_got = bch.convert_kt_to_kMpc(kt)
+        assert np.allclose([kMpc, kMpc/cosmo.h], k_got)

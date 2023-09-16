@@ -50,7 +50,7 @@ class Cosmology(FlatLambdaCDM):
     @cached_property
     def zeq(self):
         return z_at_value(self.Om, 0.5, zmin=3000., zmax=4000.,
-                          bracket=[3800., 3900.])
+                          bracket=[3800., 3900.]).value
 
     def z_at_T(self, T: float | Quantity):
         # Convert the CMB temparature today to GeV, since the
