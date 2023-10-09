@@ -10,6 +10,9 @@ from scipy.integrate._ivp.ivp import OdeResult
 from scipy.special import sici
 import alpfrag.background as bg
 from alpfrag.cosmology import Cosmology
+from astropy.units import Quantity
+import natpy as nat
+from scipy.signal import argrelmax
 
 
 def mode_time(tm: float, kt: float) -> float:
@@ -163,6 +166,8 @@ def mode_evolve_wo_scaling(kt: float,
         msg = "Temperature-dependent potential is not yet implemented!"
         raise NotImplementedError(msg)
 
+    assert bg_sol.scaled is False, "Scaled background solution is given!"
+
     # If ti and tf are not given, get them from the background solution.
     if ti is None:
         ti = bg_sol.t[0]
@@ -218,15 +223,19 @@ def mode_evolve_wo_scaling(kt: float,
 
     # Solution
     if method not in ['RK23', 'RK45', 'DOP853']:
-        return solve_ivp(rhs, [ti, tf], y0, method=method,
-                         dense_output=dense_output, events=events,
-                         rtol=rtol, atol=atol, args=u_args, jac=jac,
-                         t_eval=t_eval)
+        sol = solve_ivp(rhs, [ti, tf], y0, method=method,
+                        dense_output=dense_output, events=events,
+                        rtol=rtol, atol=atol, args=u_args, jac=jac,
+                        t_eval=t_eval)
+        sol.scaled = False
+        return sol
     else:
-        return solve_ivp(rhs, [ti, tf], y0, method=method,
-                         dense_output=dense_output, events=events,
-                         rtol=rtol, atol=atol, args=u_args,
-                         t_eval=t_eval)
+        sol = solve_ivp(rhs, [ti, tf], y0, method=method,
+                        dense_output=dense_output, events=events,
+                        rtol=rtol, atol=atol, args=u_args,
+                        t_eval=t_eval)
+        sol.scaled = False
+        return sol
 
 
 def mode_evolve_w_scaling(kt: float,
@@ -250,6 +259,8 @@ def mode_evolve_w_scaling(kt: float,
     if chit is not None:
         msg = "Temperature-dependent potential is not yet implemented!"
         raise NotImplementedError(msg)
+
+    assert bg_sol.scaled is True, "Unscaled background solution is given!"
 
     # If ti and tf are not given, get them from the background solution.
     if ti is None:
@@ -308,15 +319,19 @@ def mode_evolve_w_scaling(kt: float,
 
     # Solution
     if method not in ['RK23', 'RK45', 'DOP853']:
-        return solve_ivp(rhs, [ti, tf], y0, method=method,
-                         dense_output=dense_output, events=events,
-                         rtol=rtol, atol=atol, args=u_args, jac=jac,
-                         t_eval=t_eval)
+        sol = solve_ivp(rhs, [ti, tf], y0, method=method,
+                        dense_output=dense_output, events=events,
+                        rtol=rtol, atol=atol, args=u_args, jac=jac,
+                        t_eval=t_eval)
+        sol.scaled = True
+        return sol
     else:
-        return solve_ivp(rhs, [ti, tf], y0, method=method,
-                         dense_output=dense_output, events=events,
-                         rtol=rtol, atol=atol, args=u_args,
-                         t_eval=t_eval)
+        sol = solve_ivp(rhs, [ti, tf], y0, method=method,
+                        dense_output=dense_output, events=events,
+                        rtol=rtol, atol=atol, args=u_args,
+                        t_eval=t_eval)
+        sol.scaled = True
+        return sol
 
 
 def dc_evolve_wo_scaling_expl(kt: float,
@@ -544,7 +559,7 @@ def mode_dc_unscaled(kt: float,
 
 
 def mode_dc_scaled(kt: float,
-                   t: float,
+                   t_arr: float,
                    x_pt: float,
                    v_pt: float,
                    x_bg: float,
@@ -559,15 +574,52 @@ def mode_dc_scaled(kt: float,
         msg = "Temperature-dependent potential is not yet implemented!"
         raise NotImplementedError(msg)
 
-    tk = mode_time(t, kt)
-    phik = get_phitk_rad(tk)[0]
+    tk_arr = np.array([mode_time(t, kt) for t in t_arr])
+    phik = np.array([get_phitk_rad(tk)[0] for tk in tk_arr])
 
-    num = ((v_bg - 0.75*x_bg/t)*(v_pt - 0.75*x_pt/t)/(c**2)
-           + phik*((v_bg - 0.75*x_bg/t)/c)**2
-           + ut_x(t, x_bg, *u_args)*x_pt)
+    num = ((v_bg - 0.75*x_bg/t_arr)*(v_pt - 0.75*x_pt/t_arr)/(c**2)
+           + phik*((v_bg - 0.75*x_bg/t_arr)/c)**2
+           + ut_x(t_arr, x_bg)*x_pt)
 
-    den = 0.5*((v_bg - 0.75*x_bg/t)/c)**2 + ut(t, x_bg, *u_args)
+    den = 0.5*((v_bg - 0.75*x_bg/t_arr)/c)**2 + ut(t_arr, x_bg)
     return num/den
+
+
+def get_avg_dc_evolution(tm_arr: list[float],
+                         dc_arr: list[float],
+                         tm_start: float | None = None,
+                         sol_index: int = -1,
+                         step: int = 5):
+    if step < 1:
+        raise ValueError("`step` must be a positive non-zero integer.")
+
+    if tm_start is None:
+        t = tm_arr
+        dc = dc_arr
+    else:
+        if tm_start < t[0]:
+            raise ValueError("""`tm_start` is outside the time range of the
+            mode solution!""")
+        t = tm_arr[tm_arr > tm_start]
+        dc = dc_arr[tm_arr > tm_start]
+
+    max_indices = argrelmax(dc)[0][0:-1:step]
+    t_avg = np.zeros(len(max_indices) - 1)
+    dc_avg = np.zeros(len(max_indices) - 1)
+    for i in range(len(max_indices) - 1):
+        ind1 = max_indices[i]
+        ind2 = max_indices[i + 1]
+        t_avg[i] = np.average(t[ind1:ind2])
+        dc_avg[i] = np.average(dc[ind1:ind2])
+
+    # Calculate the derivative using backwards differences
+    dc_der_avg = np.zeros(len(dc_avg))
+    dc_der_avg[0] = 0.
+    for i in range(1, len(dc_avg)):
+        num = dc_avg[i] - dc_avg[i - 1]
+        den = t_avg[i] - t_avg[i - 1]
+        dc_der_avg[i] = num/den
+    return t_avg, dc_avg, dc_der_avg
 
 
 def dc_eval_latetime(kt: float, delta_ini: float, delta_der_ini: float,
@@ -609,20 +661,20 @@ def dc_eval_latetime(kt: float, delta_ini: float, delta_der_ini: float,
     return solve_ivp(rhs, t_span, y0, rtol=rtol, atol=atol, **solve_ivp_kwargs)
 
 
+def dc_eval_latetime_cdm(k: float | Quantity,
+                         cosmo: Cosmology,
+                         z_start: float = 5000.,
+                         z_end: float = 0.):
+    H_start_Mpc = nat.convert(cosmo.H(z_start), nat.Mpc**-1).value
+    if isinstance(k, Quantity):
+        k_Mpc = nat.convert(k, nat.Mpc**-1).value
+    else:
+        k_Mpc = k
+    tk = k_Mpc*(1. + z_start)/(np.sqrt(3.)*H_start_Mpc)
 
+    if tk < 10.:
+        raise ValueError(f"Obtained tk = {tk} at k = {k_Mpc} Mpc^-1!")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    delta, delta_der_tk = get_delta_cdm_rad(tk)
+    delta_der_lny = tk*delta_der_tk
+    return dc_eval_latetime(0., delta, delta_der_lny, cosmo, z_start, z_end)

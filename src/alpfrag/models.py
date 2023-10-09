@@ -176,6 +176,7 @@ class ALP(ABC):
                                   ):
         if c is None:
             c = self.c
+        
         return pt.mode_evolve_wo_scaling(kt, mode_ini,
                                          mode_der_ini, bg_sol,
                                          self.pot.get_u_of_theta_der,
@@ -268,8 +269,25 @@ class ALP(ABC):
                          for kt in kt_list]
 
     def get_dc_evolution(self,
-                         mode_index: int,
-                         sol_index: int = -1):
+                         kt: float,
+                         mode_sol: OdeResult,
+                         bg_sol: OdeResult):
+
+        err = "Both mode and bg solutions should be either scaled or not scaled!"
+        assert mode_sol.scaled == bg_sol.scaled, err
+
+        if mode_sol.scaled:
+            t = mode_sol.t
+            x_pt, v_pt = mode_sol.y
+            x_bg, v_bg = bg_sol.sol(t)
+            return pt.mode_dc_scaled(kt, t, x_pt, v_pt, x_bg, v_bg,
+                                     self.pot.ut_of_x, self.pot.ut_of_x_der)
+        else:
+            raise NotImplementedError("Not implemented!")
+
+    def get_dc_evolution_old(self,
+                             mode_index: int,
+                             sol_index: int = -1):
         try:
             mode_sol_dict = self.pt_modes[mode_index][sol_index]
             kt = mode_sol_dict['kt']
@@ -289,16 +307,6 @@ class ALP(ABC):
         assert mode_sol_dict['scaled'] == bg_sol_dict['scaled']
 
         if mode_sol_dict['scaled']:
-            mode = mode_sol_dict['sol'].y[0]
-            mode_der = mode_sol_dict['sol'].y[1]
-            bg_sol = bg_sol_dict['sol']
-            dc = np.array([pt.mode_dc_unscaled(kt, tm[i], mode[i], mode_der[i],
-                                               bg_sol.sol(tm[i])[0],
-                                               bg_sol.sol(tm[i])[1],
-                                               self.pot.u_of_theta,
-                                               self.pot.u_of_theta_der)
-                           for i in range(len(tm))])
-        else:
             x_pt = mode_sol_dict['sol'].y[0]
             v_pt = mode_sol_dict['sol'].y[1]
             bg_sol = bg_sol_dict['sol']
@@ -308,25 +316,40 @@ class ALP(ABC):
                                              self.pot.ut_of_x,
                                              self.pot.ut_of_x_der)
                            for i in range(len(tm))])
+            
+        else:
+            mode = mode_sol_dict['sol'].y[0]
+            mode_der = mode_sol_dict['sol'].y[1]
+            bg_sol = bg_sol_dict['sol']
+            dc = np.array([pt.mode_dc_unscaled(kt, tm[i], mode[i], mode_der[i],
+                                               bg_sol.sol(tm[i])[0],
+                                               bg_sol.sol(tm[i])[1],
+                                               self.pot.u_of_theta,
+                                               self.pot.u_of_theta_der)
+                           for i in range(len(tm))])
 
         return tm, dc
 
     def get_avg_dc_evolution(self,
-                             tm_start: float,
                              mode_index: int,
+                             tm_start: float | None = None,
                              sol_index: int = -1,
                              step: int = 5):
         t, dc = self.get_dc_evolution(mode_index, sol_index)
 
-        if tm_start < t[0]:
-            raise ValueError("""`tm_start` is outside the time range of the
-            mode solution!""")
-
         if step < 1:
             raise ValueError("`step` must be a positive non-zero integer.")
 
-        t_res = t[t > tm_start]
-        dc_res = dc[t > tm_start]
+        if tm_start is None:
+            t_res = t
+            dc_res = dc
+        else:
+            if tm_start < t[0]:
+                raise ValueError("""`tm_start` is outside the time range of the
+                mode solution!""")
+
+            t_res = t[t > tm_start]
+            dc_res = dc[t > tm_start]
         max_indices = argrelmax(dc_res)[0][0:-1:step]
         t_avg = np.zeros(len(max_indices) - 1)
         dc_avg = np.zeros(len(max_indices) - 1)
@@ -408,8 +431,8 @@ class ALP(ABC):
             tm_start = 0.5*tm[-1]
 
         # Get the averaged density contrast evolution
-        t_avg, dc_avg, dc_der_avg = self.get_avg_dc_evolution(tm_start,
-                                                              mode_index,
+        t_avg, dc_avg, dc_der_avg = self.get_avg_dc_evolution(mode_index,
+                                                              tm_start,
                                                               sol_index=-1,
                                                               step=step)
 
@@ -448,24 +471,26 @@ class ALP(ABC):
                                                        step, index)
             self.pt_dc_latetime.append(dc_dict)
 
-    def pt_dc_eval_latetime_savefile(self, z_end: float = 0.):
-        fname = self.fname_base + "_int_" + str(self.run_id) + '.hdf5'
-        f = h5py.File(RESULTS_PATH / fname, 'r')
-        kt_list = f['kt_list']
-        delta_list = f['delta']
-        tm_match_list = f['tm_match']
-        delta_der_tm_list = f['delta_der_tm']
+    def pt_dc_eval_latetime_savefile(self, savefile: str | Path,
+                                     z_end: float = 0.):
+        # fname = self.fname_base + "_int_" + str(self.run_id) + '.hdf5'
+        f = h5py.File(savefile, 'r')
+        # kt_list = f['kt_list']
+        kt_list = f['kt'][...]
+        delta_list = f['delta'][...]
+        tm_match_list = f['tm_match'][...]
+        delta_der_tm_list = f['delta_der_tm'][...]
         f.close()
 
         # Convert tm derivatives to convert to ln(y) derivatives where
         # y = a/aeq
-        delta_der_lny_list = 2*tm_match_list*delta_der_tm_list
+        delta_der_lny_list = 2.*tm_match_list*delta_der_tm_list
 
         # Creating the list to store the solutions
         self.pt_dc_latetime = []
 
         # Loop to compute the solutions
-        for i, kt in kt_list:
+        for i, kt in enumerate(kt_list):
             sol = pt.dc_eval_latetime(kt, delta_list[i], delta_der_lny_list[i],
                                       self.cosmo,
                                       self.convert_tm_to_redshift(tm_match_list[i]),
@@ -484,6 +509,30 @@ class ALP(ABC):
                 msg = "Integration failed for kt={:.2f}".format(kt)
                 raise RuntimeError(msg)
 
+    def get_latetime_powerspectrum(self):
+        try:
+            number_of_modes = len(self.pt_dc_latetime)
+        except AttributeError:
+            print("Run the method ")
+
+        kt = np.zeros(number_of_modes)
+        kMpc = np.zeros(number_of_modes)
+        khMpc = np.zeros(number_of_modes)
+        deltasq = np.zeros(number_of_modes)
+
+        for i, sol in enumerate(self.pt_dc_latetime):
+            kt[i] = sol['kt']
+            kMpc[i] = sol['kMpc']
+            khMpc[i] = sol['khMpc']
+            deltasq[i] = sol['delta'][-1]**2
+
+        return {
+            'kt': kt,
+            'kMpc': kMpc,
+            'khMpc': khMpc,
+            'deltasq': deltasq
+        }
+
 
 
 class StandardALP(ALP):
@@ -497,6 +546,7 @@ class StandardALP(ALP):
         super().__init__(pot, m0=m0, cosmo=cosmo, c=c)
         self.theta_ini = theta_ini
         self.bg_field = []
+        self.pt_modes = []
         self.t_zero_cross = None
         self.t_first_min = None
 
@@ -532,8 +582,13 @@ class StandardALP(ALP):
                         rtol: float = 1e-12,
                         atol: float = 1e-12,
                         stop_after_first_osc: bool = False,
-                        c: float | None = None
+                        c: float | None = None,
+                        stop_after_convergence: bool = True,
+                        convergence_tol: float = 1e-2,
+                        verbose: bool = True,
                         ):
+        # For safety, let us make sure that the list is empty
+        assert len(self.bg_field) == 0
 
         if precise_ics:
             theta_ini, theta_der_ini = self.bg_get_precise_ics(ti)
@@ -564,6 +619,7 @@ class StandardALP(ALP):
                                                     dense_output=dense_output,
                                                     events=events,
                                                     rtol=rtol, atol=atol)
+        sol_early.scaled = False
 
         # Store the zero-crossing time and the time of first local_minimum
         # as properties
@@ -574,13 +630,16 @@ class StandardALP(ALP):
         self.t_zero_cross = sol_early.t_events[0][0]
         self.t_first_min = sol_early.t_events[1][0]
 
-        self.bg_field.append({
-            'sol': sol_early,
-            'scaled': False
-        })
+        self.bg_field.append(sol_early)
+
+        if verbose:
+            print(f"""Initial run completed.
+            Zero crossing at tm = {self.t_zero_cross}.
+            First minimum at tm = {self.t_first_min}.
+            ---""")
 
         # Continue evolving the field w/ scaling if requested
-        if not stop_after_first_osc:
+        if (not stop_after_first_osc) and (not stop_after_convergence):
             ts = sol_early.t[-1]
             x0, v0 = bg.scaled_initial_conditions(sol_early.y[0][-1],
                                                   sol_early.y[1][-1],
@@ -589,13 +648,8 @@ class StandardALP(ALP):
                                                       method=method,
                                                       dense_output=dense_output,
                                                       rtol=rtol, atol=atol)
-            self.bg_field.append({
-                'sol': sol_late,
-                'scaled': True
-            })
-
-        
-
+            sol_late.scaled = True
+            self.bg_field.append(sol_late)
 
 
 class KineticALP(ALP):
